@@ -806,9 +806,10 @@ show_menu() {
     echo "4) Show configuration info"
     echo "5) Generate client config"
     echo "6) Update dnstt-deploy script"
+    echo "7) Uninstall DNSTT-SSH Panel"
     echo "0) Exit"
     echo ""
-    print_question "Please select an option (0-6): "
+    print_question "Please select an option (0-7): "
 }
 
 handle_menu() {
@@ -856,6 +857,13 @@ handle_menu() {
             # Update logic would go here
             print_status "Already up to date"
             read -p "Press Enter to continue..."
+            ;;
+        7)
+            print_question "Are you sure you want to completely uninstall DNSTT? [y/N]: "
+            read -r confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                uninstall_dnstt
+            fi
             ;;
         0)
             print_status "Goodbye!"
@@ -939,7 +947,65 @@ main_install() {
 }
 
 # ============================================================================
-# MAIN
+# UNINSTALLATION
+# ============================================================================
+
+uninstall_dnstt() {
+    print_status "Starting uninstallation..."
+    
+    # Stop and disable service
+    if systemctl is-active --quiet dnstt-server; then
+        print_status "Stopping DNSTT service..."
+        systemctl stop dnstt-server
+    fi
+    
+    if systemctl is-enabled --quiet dnstt-server 2>/dev/null; then
+        print_status "Disabling DNSTT service..."
+        systemctl disable dnstt-server
+    fi
+    
+    # Remove systemd service file
+    if [[ -f "/etc/systemd/system/dnstt-server.service" ]]; then
+        rm -f "/etc/systemd/system/dnstt-server.service"
+        systemctl daemon-reload
+    fi
+    
+    # Remove binaries
+    print_status "Removing binaries..."
+    rm -f "/usr/local/bin/dnstt-server"
+    rm -f "/usr/local/bin/dnstt-panel"
+    rm -f "/usr/local/bin/dnstt-connection-limit"
+    # Note: We don't remove the installer itself while it's running
+    
+    # Remove PAM configuration
+    if [[ -f "/etc/pam.d/sshd" ]]; then
+        print_status "Removing PAM configuration..."
+        sed -i '/dnstt-connection-limit/d' "/etc/pam.d/sshd"
+    fi
+    
+    # Remove configuration and keys
+    print_status "Removing configuration and keys..."
+    rm -rf "/etc/dnstt"
+    
+    # Remove users in dnstt-users group
+    if getent group "dnstt-users" &>/dev/null; then
+        print_status "Removing tunnel users..."
+        for user in $(getent group "dnstt-users" | cut -d: -f4 | tr ',' '\n'); do
+            if [[ -n "$user" ]]; then
+                print_status "Removing user: $user"
+                pkill -u "$user" 2>/dev/null
+                userdel -r "$user" 2>/dev/null
+            fi
+        done
+        groupdel "dnstt-users" 2>/dev/null
+    fi
+    
+    print_success "DNSTT-SSH Panel has been completely removed from your system."
+    exit 0
+}
+
+# ============================================================================
+# MAIN EXECUTION
 # ============================================================================
 
 main() {

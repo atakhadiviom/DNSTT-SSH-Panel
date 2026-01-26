@@ -27,9 +27,9 @@ else
     USER_MGMT_ENABLED=false
 fi
 
-# Dialog dimensions
-DIALOG_HEIGHT=24
-DIALOG_WIDTH=78
+# Dialog dimensions - use 0 for auto-size
+DIALOG_HEIGHT=0
+DIALOG_WIDTH=0
 
 # Colors for dialog
 export DIALOGRC="/tmp/dnstt-panel-dialogrc"
@@ -240,7 +240,7 @@ Press any key to refresh or select an option below.
 
     dialog --colors --title " DNSTT Panel v1.0 " \
            --menu "$dashboard_content" \
-           $DIALOG_HEIGHT $DIALOG_WIDTH 9 \
+           $DIALOG_HEIGHT $DIALOG_WIDTH 0 \
            "1" "Refresh Dashboard" \
            "2" "Service Controls" \
            "3" "View Live Logs" \
@@ -859,7 +859,7 @@ cleanup() {
     rm -f /tmp/dnstt-panel-choice
     rm -f /tmp/dnstt-error
     rm -f "$DIALOGRC"
-    clear
+    # clear  # Removed to allow viewing of potential errors before exit
     echo "DNSTT Panel closed."
 }
 
@@ -880,14 +880,28 @@ main() {
     load_config
     
     while true; do
+        # Clear previous choice
+        rm -f /tmp/dnstt-panel-choice
+
         show_dashboard
         local ret=$?
         
         if [[ $ret -ne 0 ]]; then
-            # User pressed ESC or Cancel
-            dialog --yesno "Exit DNSTT Panel?" 6 25
-            if [[ $? -eq 0 ]]; then
-                break
+            # User pressed ESC (255) or Cancel (1)
+            # If dialog failed (e.g. terminal too small), it also returns 255
+            if [[ $ret -eq 255 ]]; then
+                # Check if it was a terminal size issue or just ESC
+                if ! dialog --yesno "Exit DNSTT Panel?" 0 0; then
+                    if [[ $? -eq 255 ]]; then
+                        echo "Error: Dialog failed. Your terminal might be too small." >&2
+                        exit 1
+                    fi
+                else
+                    break
+                fi
+            else
+                dialog --yesno "Exit DNSTT Panel?" 0 0
+                [[ $? -eq 0 ]] && break
             fi
             continue
         fi
