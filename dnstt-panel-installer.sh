@@ -502,6 +502,27 @@ configure_ssh() {
         print_status "Enabled AllowTcpForwarding"
     fi
 
+    # Check and enable PasswordAuthentication
+    if grep -q "^PasswordAuthentication no" "$ssh_config"; then
+        sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' "$ssh_config"
+        modified=true
+        print_status "Enabled PasswordAuthentication"
+    elif ! grep -q "^PasswordAuthentication" "$ssh_config"; then
+        echo "PasswordAuthentication yes" >> "$ssh_config"
+        modified=true
+        print_status "Added PasswordAuthentication yes"
+    fi
+
+    # Ensure rbash is in /etc/shells
+    if ! grep -q "/bin/rbash" /etc/shells; then
+        echo "/bin/rbash" >> /etc/shells
+        print_status "Added /bin/rbash to /etc/shells"
+    fi
+    if ! grep -q "/usr/bin/rbash" /etc/shells; then
+        echo "/usr/bin/rbash" >> /etc/shells
+        print_status "Added /usr/bin/rbash to /etc/shells"
+    fi
+
     if [[ "$modified" == true ]]; then
         print_status "Restarting SSH service..."
         if systemctl is-active --quiet sshd; then
