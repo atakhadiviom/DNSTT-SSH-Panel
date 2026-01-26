@@ -523,6 +523,24 @@ configure_ssh() {
         print_status "Added /usr/bin/rbash to /etc/shells"
     fi
 
+    # Optimize SSH performance
+    if ! grep -q "^Compression" "$ssh_config"; then
+        echo "Compression yes" >> "$ssh_config"
+        modified=true
+        print_status "Enabled SSH Compression"
+    fi
+    if ! grep -q "^ClientAliveInterval" "$ssh_config"; then
+        echo "ClientAliveInterval 30" >> "$ssh_config"
+        echo "ClientAliveCountMax 3" >> "$ssh_config"
+        modified=true
+        print_status "Configured SSH KeepAlive"
+    fi
+    if ! grep -q "^UseDNS" "$ssh_config"; then
+        echo "UseDNS no" >> "$ssh_config"
+        modified=true
+        print_status "Disabled UseDNS for faster login"
+    fi
+
     if [[ "$modified" == true ]]; then
         print_status "Restarting SSH service..."
         if systemctl is-active --quiet sshd; then
