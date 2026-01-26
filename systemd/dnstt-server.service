@@ -1,0 +1,46 @@
+[Unit]
+Description=DNSTT DNS Tunnel Server
+Documentation=https://www.bamsoftware.com/software/dnstt/
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dnstt
+Group=dnstt
+
+# Main execution - these values are replaced by installer
+ExecStart=/usr/local/bin/dnstt-server -udp :5300 -privkey-file /etc/dnstt/dnstt-server.key -mtu 1232 t.example.com 127.0.0.1:22
+
+# Restart settings
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths=/etc/dnstt /var/log/dnstt
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+MemoryDenyWriteExecute=false
+LockPersonality=true
+
+# Capabilities
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dnstt-server
+
+[Install]
+WantedBy=multi-user.target

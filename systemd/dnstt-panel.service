@@ -1,0 +1,29 @@
+[Unit]
+Description=DNSTT Management Panel (Persistent Mode)
+Documentation=https://github.com/your-repo/dnstt-panel
+After=network.target dnstt-server.service
+Wants=dnstt-server.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dnstt-panel
+
+# Restart settings
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=5
+
+# Terminal settings for persistent mode
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+# User
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
