@@ -78,6 +78,24 @@ LIMITER_EOF
 }
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+get_group_members() {
+    local group_name="$1"
+    local gid=$(getent group "$group_name" 2>/dev/null | cut -d: -f3)
+    
+    {
+        # Primary members
+        if [[ -n "$gid" ]]; then
+            getent passwd 2>/dev/null | awk -F: -v gid="$gid" '$4 == gid {print $1}'
+        fi
+        # Secondary members
+        getent group "$group_name" 2>/dev/null | cut -d: -f4 | tr ',' '\n'
+    } | sort -u | grep -v "^$"
+}
+
+# ============================================================================
 # USER FUNCTIONS
 # ============================================================================
 
@@ -435,7 +453,7 @@ create_users_bulk() {
 cleanup_expired_users() {
     local deleted=0
     
-    for user in $(getent group "$USER_GROUP" 2>/dev/null | cut -d: -f4 | tr ',' '\n'); do
+    for user in $(get_group_members "$USER_GROUP"); do
         if [[ -f "${USER_DB_DIR}/${user}.expiry" ]]; then
             local expiry=$(cat "${USER_DB_DIR}/${user}.expiry")
             if [[ $(date +%s) -gt $(date -d "$expiry" +%s 2>/dev/null || echo 0) ]]; then

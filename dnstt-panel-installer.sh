@@ -45,6 +45,20 @@ BOLD='\033[1m'
 # HELPER FUNCTIONS
 # ============================================================================
 
+get_group_members() {
+    local group_name="$1"
+    local gid=$(getent group "$group_name" 2>/dev/null | cut -d: -f3)
+    
+    {
+        # Primary members
+        if [[ -n "$gid" ]]; then
+            getent passwd 2>/dev/null | awk -F: -v gid="$gid" '$4 == gid {print $1}'
+        fi
+        # Secondary members
+        getent group "$group_name" 2>/dev/null | cut -d: -f4 | tr ',' '\n'
+    } | sort -u | grep -v "^$"
+}
+
 print_banner() {
     echo -e "${CYAN}"
     cat << EOF

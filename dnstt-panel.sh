@@ -507,7 +507,13 @@ show_user_management() {
     
     while true; do
         # Get user count
-        local user_count=$(getent group dnstt-users 2>/dev/null | cut -d: -f4 | tr ',' '\n' | grep -c . || echo "0")
+        local user_count=0
+        if type get_group_members &>/dev/null; then
+            user_count=$(get_group_members "dnstt-users" | wc -l | tr -d ' ')
+        else
+            user_count=$(getent group dnstt-users 2>/dev/null | cut -d: -f4 | tr ',' '\n' | grep -c . || echo "0")
+        fi
+        
         local active_sessions=$(who 2>/dev/null | wc -l)
         
         print_header
