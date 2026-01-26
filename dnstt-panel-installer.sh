@@ -234,7 +234,7 @@ download_dnstt_server() {
     if [[ -f "$temp_dir/MD5SUMS" ]]; then
         if grep "$filename" MD5SUMS | md5sum -c - 2>/dev/null; then
             print_success "MD5 checksum verified"
-            ((verified++))
+            verified=$((verified + 1))
         else
             print_warning "MD5 checksum verification failed"
         fi
@@ -244,7 +244,7 @@ download_dnstt_server() {
     if [[ -f "$temp_dir/SHA1SUMS" ]]; then
         if grep "$filename" SHA1SUMS | sha1sum -c - 2>/dev/null; then
             print_success "SHA1 checksum verified"
-            ((verified++))
+            verified=$((verified + 1))
         else
             print_warning "SHA1 checksum verification failed"
         fi
@@ -254,7 +254,7 @@ download_dnstt_server() {
     if [[ -f "$temp_dir/SHA256SUMS" ]]; then
         if grep "$filename" SHA256SUMS | sha256sum -c - 2>/dev/null; then
             print_success "SHA256 checksum verified"
-            ((verified++))
+            verified=$((verified + 1))
         else
             print_warning "SHA256 checksum verification failed"
         fi
@@ -657,7 +657,17 @@ install_panel() {
     chmod +x "$PANEL_INSTALL_PATH"
     chmod +x /usr/local/lib/dnstt/user-management.sh 2>/dev/null || true
     
+    # Install this script as dnstt-deploy
+    if [[ -f "$0" && "$0" != "/dev/fd/"* ]]; then
+        cp "$0" "$SCRIPT_INSTALL_PATH"
+        chmod +x "$SCRIPT_INSTALL_PATH"
+    else
+        curl -fsSL "${GITHUB_RAW}/dnstt-panel-installer.sh" -o "$SCRIPT_INSTALL_PATH"
+        chmod +x "$SCRIPT_INSTALL_PATH"
+    fi
+    
     print_success "Panel installed to $PANEL_INSTALL_PATH"
+    print_success "Installer saved to $SCRIPT_INSTALL_PATH"
 }
 
 create_fallback_panel() {

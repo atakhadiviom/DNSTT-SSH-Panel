@@ -440,7 +440,7 @@ cleanup_expired_users() {
             local expiry=$(cat "${USER_DB_DIR}/${user}.expiry")
             if [[ $(date +%s) -gt $(date -d "$expiry" +%s 2>/dev/null || echo 0) ]]; then
                 if delete_tunnel_user "$user"; then
-                    ((deleted++))
+                    deleted=$((deleted + 1))
                 fi
             fi
         fi
