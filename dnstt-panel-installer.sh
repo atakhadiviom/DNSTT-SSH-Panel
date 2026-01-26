@@ -14,7 +14,7 @@ set -e
 # ============================================================================
 
 DNSTT_BASE_URL="https://dnstt.network"
-SCRIPT_URL="https://raw.githubusercontent.com/your-repo/dnstt-panel/main/dnstt-panel-installer.sh"
+SCRIPT_URL="https://raw.githubusercontent.com/atakhadiviom/DNSTT-SSH-Panel/main/dnstt-panel-installer.sh"
 INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/dnstt"
 SYSTEMD_DIR="/etc/systemd/system"
@@ -1010,7 +1010,7 @@ uninstall_dnstt() {
     # Remove users in dnstt-users group
     if getent group "dnstt-users" &>/dev/null; then
         print_status "Removing tunnel users..."
-        for user in $(getent group "dnstt-users" | cut -d: -f4 | tr ',' '\n'); do
+        for user in $(get_group_members "dnstt-users"); do
             if [[ -n "$user" ]]; then
                 print_status "Removing user: $user"
                 pkill -u "$user" 2>/dev/null
