@@ -322,6 +322,12 @@ generate_keys() {
         if [[ ! "$regenerate" =~ ^[Yy]$ ]]; then
             # Read existing public key
             PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+            
+            # Ensure permissions are correct even if skipping generation
+            chown "$DNSTT_USER:$DNSTT_USER" "$PRIVATE_KEY_FILE" "$PUBLIC_KEY_FILE"
+            chmod 600 "$PRIVATE_KEY_FILE"
+            chmod 644 "$PUBLIC_KEY_FILE"
+            
             return 0
         fi
     fi
