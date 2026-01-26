@@ -484,7 +484,14 @@ configure_ssh() {
 
     if [[ "$modified" == true ]]; then
         print_status "Restarting SSH service..."
-        systemctl restart sshd
+        if systemctl is-active --quiet sshd; then
+            systemctl restart sshd
+        elif systemctl is-active --quiet ssh; then
+            systemctl restart ssh
+        else
+            # Fallback for systems where service might be named differently or alias not working
+            systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || print_warning "Could not restart SSH service automatically. Please restart it manually."
+        fi
         print_success "SSH configuration updated"
     else
         print_status "SSH is already properly configured"
