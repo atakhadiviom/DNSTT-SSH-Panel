@@ -606,6 +606,47 @@ configure_firewall() {
 }
 
 # ============================================================================
+# NETWORK OPTIMIZATION (BBR + TWEAKS)
+# ============================================================================
+
+optimize_network() {
+    print_section "Network Optimization"
+
+    print_status "Applying kernel tweaks for better performance..."
+
+    # Enable BBR Congestion Control
+    if ! grep -q "tcp_bbr" /etc/modules-load.d/modules.conf 2>/dev/null; then
+        echo "tcp_bbr" >> /etc/modules-load.d/modules.conf
+        modprobe tcp_bbr 2>/dev/null || true
+    fi
+
+    cat > /etc/sysctl.d/99-dnstt-optimizations.conf << EOF
+# DNSTT Network Optimizations
+# Enable BBR
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+
+# TCP buffer sizes for high latency
+net.ipv4.tcp_window_scaling = 1
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 16384 16777216
+
+# Increase connection limits
+fs.file-max = 1000000
+net.ipv4.tcp_max_syn_backlog = 8192
+net.core.netdev_max_backlog = 8192
+net.ipv4.tcp_slow_start_after_idle = 0
+EOF
+
+    # Apply changes
+    sysctl -p /etc/sysctl.d/99-dnstt-optimizations.conf >/dev/null 2>&1
+    
+    print_success "BBR and network optimizations applied"
+}
+
+# ============================================================================
 # SYSTEMD SERVICES
 # ============================================================================
 
@@ -999,6 +1040,7 @@ main_install() {
     save_configuration
     configure_ssh
     configure_firewall
+    optimize_network
     create_systemd_services
     install_panel
     start_services
