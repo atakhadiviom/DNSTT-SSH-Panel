@@ -17,6 +17,15 @@ PRIVATE_KEY_FILE="${CONFIG_DIR}/dnstt-server.key"
 LOG_DIR="/var/log/dnstt"
 SERVICE_NAME="dnstt-server"
 REFRESH_INTERVAL=5
+USER_MGMT_SCRIPT="/usr/local/lib/dnstt/user-management.sh"
+
+# Source user management module if available
+if [[ -f "$USER_MGMT_SCRIPT" ]]; then
+    source "$USER_MGMT_SCRIPT"
+    USER_MGMT_ENABLED=true
+else
+    USER_MGMT_ENABLED=false
+fi
 
 # Dialog dimensions
 DIALOG_HEIGHT=24
@@ -231,14 +240,15 @@ Press any key to refresh or select an option below.
 
     dialog --colors --title " DNSTT Panel v1.0 " \
            --menu "$dashboard_content" \
-           $DIALOG_HEIGHT $DIALOG_WIDTH 8 \
+           $DIALOG_HEIGHT $DIALOG_WIDTH 9 \
            "1" "Refresh Dashboard" \
            "2" "Service Controls" \
            "3" "View Live Logs" \
            "4" "Configuration" \
            "5" "Generate Client Config" \
            "6" "Connection Monitor" \
-           "7" "System Info" \
+           "7" "User Management" \
+           "8" "System Info" \
            "0" "Exit" \
            2>/tmp/dnstt-panel-choice
     
@@ -559,6 +569,235 @@ Auto-refreshing every ${REFRESH_INTERVAL} seconds...
 }
 
 # ============================================================================
+# USER MANAGEMENT
+# ============================================================================
+
+show_user_management() {
+    if [[ "$USER_MGMT_ENABLED" != "true" ]]; then
+        dialog --msgbox "User Management module not installed.\n\nRun the installer to enable this feature." 8 50
+        return
+    fi
+    
+    while true; do
+        # Get user count
+        local user_count=$(getent group dnstt-users 2>/dev/null | cut -d: -f4 | tr ',' '\n' | grep -c . || echo "0")
+        local active_sessions=$(who 2>/dev/null | wc -l)
+        
+        dialog --title " User Management " \
+               --menu "\nTotal Users: $user_count | Active Sessions: $active_sessions\n" \
+               22 60 12 \
+               "1" "List All Users" \
+               "2" "Create New User" \
+               "3" "Delete User" \
+               "4" "Enable/Disable User" \
+               "5" "Change Password" \
+               "6" "Set Connection Limit" \
+               "7" "Set Expiry Date" \
+               "8" "View Active Sessions" \
+               "9" "Kick User Session" \
+               "10" "Bulk Create Users" \
+               "11" "Generate User Credentials" \
+               "12" "Cleanup Expired Users" \
+               "0" "Back" \
+               2>/tmp/dnstt-panel-choice
+        
+        local ret=$?
+        if [[ $ret -ne 0 ]]; then
+            break
+        fi
+        
+        local choice=$(cat /tmp/dnstt-panel-choice 2>/dev/null)
+        
+        case $choice in
+            1) # List Users
+                local user_list=$(list_tunnel_users 2>/dev/null)
+                dialog --title " User List " --msgbox "$user_list" 20 70
+                ;;
+            2) # Create User
+                local username
+                username=$(dialog --title " Create User " \
+                          --inputbox "Enter username (lowercase, 3-31 chars):" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                local password
+                password=$(dialog --title " Create User " \
+                          --passwordbox "Enter password:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$password" ]] && continue
+                
+                local max_conn
+                max_conn=$(dialog --title " Create User " \
+                          --inputbox "Max concurrent connections (default: 2):" \
+                          8 50 "2" 2>&1 >/dev/tty)
+                max_conn=${max_conn:-2}
+                
+                local expiry_days
+                expiry_days=$(dialog --title " Create User " \
+                             --inputbox "Expiry in days (0 = never):" \
+                             8 50 "30" 2>&1 >/dev/tty)
+                expiry_days=${expiry_days:-0}
+                
+                local result
+                result=$(create_tunnel_user "$username" "$password" "$max_conn" "$expiry_days" 2>&1)
+                dialog --msgbox "$result" 8 50
+                ;;
+            3) # Delete User
+                local username
+                username=$(dialog --title " Delete User " \
+                          --inputbox "Enter username to delete:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                dialog --yesno "Are you sure you want to delete user '$username'?\n\nThis will terminate all their sessions." 8 50
+                if [[ $? -eq 0 ]]; then
+                    local result
+                    result=$(delete_tunnel_user "$username" 2>&1)
+                    dialog --msgbox "$result" 6 40
+                fi
+                ;;
+            4) # Enable/Disable
+                local username
+                username=$(dialog --title " Enable/Disable User " \
+                          --inputbox "Enter username:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                dialog --title " Enable/Disable User " \
+                       --menu "Select action for '$username':" \
+                       12 40 2 \
+                       "1" "Enable User" \
+                       "2" "Disable User" \
+                       2>/tmp/dnstt-panel-choice
+                
+                local action=$(cat /tmp/dnstt-panel-choice 2>/dev/null)
+                local result
+                if [[ "$action" == "1" ]]; then
+                    result=$(enable_tunnel_user "$username" 2>&1)
+                elif [[ "$action" == "2" ]]; then
+                    result=$(disable_tunnel_user "$username" 2>&1)
+                fi
+                [[ -n "$result" ]] && dialog --msgbox "$result" 6 40
+                ;;
+            5) # Change Password
+                local username
+                username=$(dialog --title " Change Password " \
+                          --inputbox "Enter username:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                local password
+                password=$(dialog --title " Change Password " \
+                          --passwordbox "Enter new password:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$password" ]] && continue
+                
+                local result
+                result=$(change_user_password "$username" "$password" 2>&1)
+                dialog --msgbox "$result" 6 40
+                ;;
+            6) # Set Connection Limit
+                local username
+                username=$(dialog --title " Set Connection Limit " \
+                          --inputbox "Enter username:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                local limit
+                limit=$(dialog --title " Set Connection Limit " \
+                       --inputbox "Enter max concurrent connections:" \
+                       8 50 "2" 2>&1 >/dev/tty)
+                [[ -z "$limit" ]] && continue
+                
+                local result
+                result=$(set_user_connection_limit "$username" "$limit" 2>&1)
+                dialog --msgbox "$result" 6 50
+                ;;
+            7) # Set Expiry
+                local username
+                username=$(dialog --title " Set Expiry Date " \
+                          --inputbox "Enter username:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                local expiry
+                expiry=$(dialog --title " Set Expiry Date " \
+                        --inputbox "Enter expiry date (YYYY-MM-DD):" \
+                        8 50 "$(date -d '+30 days' +%Y-%m-%d)" 2>&1 >/dev/tty)
+                [[ -z "$expiry" ]] && continue
+                
+                local result
+                result=$(set_user_expiry "$username" "$expiry" 2>&1)
+                dialog --msgbox "$result" 6 50
+                ;;
+            8) # View Sessions
+                local sessions=$(get_active_sessions 2>/dev/null)
+                dialog --title " Active Sessions " --msgbox "$sessions" 18 70
+                ;;
+            9) # Kick Session
+                local username
+                username=$(dialog --title " Kick User Session " \
+                          --inputbox "Enter username to kick (all sessions):" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                dialog --yesno "Terminate all sessions for '$username'?" 6 45
+                if [[ $? -eq 0 ]]; then
+                    kick_user_session "$username" "all"
+                    dialog --msgbox "Sessions terminated for $username" 6 40
+                fi
+                ;;
+            10) # Bulk Create
+                local count
+                count=$(dialog --title " Bulk Create Users " \
+                       --inputbox "How many users to create?" \
+                       8 50 "10" 2>&1 >/dev/tty)
+                [[ -z "$count" ]] && continue
+                
+                local prefix
+                prefix=$(dialog --title " Bulk Create Users " \
+                        --inputbox "Username prefix:" \
+                        8 50 "user" 2>&1 >/dev/tty)
+                prefix=${prefix:-user}
+                
+                local expiry_days
+                expiry_days=$(dialog --title " Bulk Create Users " \
+                             --inputbox "Expiry in days (0 = never):" \
+                             8 50 "30" 2>&1 >/dev/tty)
+                expiry_days=${expiry_days:-30}
+                
+                dialog --infobox "Creating $count users..." 3 35
+                local result
+                result=$(create_users_bulk "$count" "$prefix" "12" "2" "$expiry_days" 2>&1)
+                dialog --title " Bulk Create Result " --msgbox "$result" 20 70
+                ;;
+            11) # Generate Credentials
+                local username
+                username=$(dialog --title " Generate Credentials " \
+                          --inputbox "Enter username:" \
+                          8 50 2>&1 >/dev/tty)
+                [[ -z "$username" ]] && continue
+                
+                local creds
+                creds=$(generate_user_credentials "$username" 2>&1)
+                dialog --title " User Credentials " --msgbox "$creds" 28 70
+                ;;
+            12) # Cleanup Expired
+                dialog --yesno "Delete all expired users?\n\nThis action cannot be undone." 8 45
+                if [[ $? -eq 0 ]]; then
+                    local result
+                    result=$(cleanup_expired_users 2>&1)
+                    dialog --msgbox "$result" 6 40
+                fi
+                ;;
+            0)
+                break
+                ;;
+        esac
+    done
+}
+
+# ============================================================================
 # SYSTEM INFO
 # ============================================================================
 
@@ -676,6 +915,9 @@ main() {
                 show_connection_monitor
                 ;;
             7)
+                show_user_management
+                ;;
+            8)
                 show_system_info
                 ;;
             0)

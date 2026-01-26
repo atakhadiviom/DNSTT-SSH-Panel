@@ -58,7 +58,7 @@ print_banner() {
 ║     ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝      ╚═╝       ╚═╝     ╚═╝  ╚═╝     ║
 ║                                                                           ║
 ║            DNS Tunnel Server with SSH Mode - Panel Installer              ║
-║                         Version ${VERSION}                                    ║
+║                         Version $VERSION                                      ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 EOF
     echo -e "${NC}"
@@ -622,28 +622,57 @@ EOF
 install_panel() {
     print_section "Installing DNSTT Panel"
 
-    # The panel script will be installed from the same directory or downloaded
+    local GITHUB_RAW="https://raw.githubusercontent.com/atakhadiviom/DNSTT-SSH-Panel/main"
+    
+    # Try to find local panel script first
     local panel_source="$(dirname "$0")/dnstt-panel.sh"
+    local user_mgmt_source="$(dirname "$0")/lib/user-management.sh"
+    
+    # Create lib directory for user management
+    mkdir -p /usr/local/lib/dnstt
     
     if [[ -f "$panel_source" ]]; then
+        print_status "Installing panel from local file..."
         cp "$panel_source" "$PANEL_INSTALL_PATH"
     else
-        # Create a basic panel inline (the full panel will be in dnstt-panel.sh)
-        print_status "Creating panel script..."
-        cat > "$PANEL_INSTALL_PATH" << 'PANEL_SCRIPT'
+        # Download from GitHub
+        print_status "Downloading panel from GitHub..."
+        if ! curl -fsSL "${GITHUB_RAW}/dnstt-panel.sh" -o "$PANEL_INSTALL_PATH"; then
+            print_error "Failed to download panel script"
+            # Create fallback basic panel
+            create_fallback_panel
+        fi
+    fi
+    
+    # Install user management module
+    if [[ -f "$user_mgmt_source" ]]; then
+        print_status "Installing user management from local file..."
+        cp "$user_mgmt_source" /usr/local/lib/dnstt/user-management.sh
+    else
+        print_status "Downloading user management module..."
+        curl -fsSL "${GITHUB_RAW}/lib/user-management.sh" -o /usr/local/lib/dnstt/user-management.sh 2>/dev/null || true
+    fi
+    
+    # Make executable
+    chmod +x "$PANEL_INSTALL_PATH"
+    chmod +x /usr/local/lib/dnstt/user-management.sh 2>/dev/null || true
+    
+    print_success "Panel installed to $PANEL_INSTALL_PATH"
+}
+
+create_fallback_panel() {
+    cat > "$PANEL_INSTALL_PATH" << 'PANEL_SCRIPT'
 #!/bin/bash
-# DNSTT Management Panel
-# This is a placeholder - the full panel is in dnstt-panel.sh
+# DNSTT Management Panel - Fallback Mode
 
 CONFIG_DIR="/etc/dnstt"
 CONFIG_FILE="${CONFIG_DIR}/dnstt-server.conf"
 
 source "$CONFIG_FILE" 2>/dev/null
 
-echo "DNSTT Panel - Basic Mode"
-echo "========================"
-echo ""
-echo "For full panel functionality, install dnstt-panel.sh"
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║              DNSTT Panel - Basic Mode                      ║"
+echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 echo "Quick Commands:"
 echo "  Status:  systemctl status dnstt-server"
@@ -659,11 +688,10 @@ echo "  Mode: ${TUNNEL_MODE:-ssh}"
 echo ""
 echo "Public Key:"
 cat "${CONFIG_DIR}/dnstt-server.pub" 2>/dev/null || echo "Key not found"
+echo ""
+echo "To get full panel, run:"
+echo "  curl -fsSL https://raw.githubusercontent.com/atakhadiviom/DNSTT-SSH-Panel/main/dnstt-panel.sh -o /usr/local/bin/dnstt-panel && chmod +x /usr/local/bin/dnstt-panel"
 PANEL_SCRIPT
-    fi
-
-    chmod +x "$PANEL_INSTALL_PATH"
-    print_success "Panel installed to $PANEL_INSTALL_PATH"
 }
 
 # ============================================================================
