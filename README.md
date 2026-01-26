@@ -67,14 +67,14 @@ Before running the installer, configure your DNS:
 
 ```bash
 # Download and run installer
-bash <(curl -Ls https://raw.githubusercontent.com/your-repo/dnstt-panel/main/dnstt-panel-installer.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/atakhadiviom/DNSTT-SSH-Panel/main/dnstt-panel-installer.sh)
 ```
 
 Or clone and run:
 
 ```bash
-git clone https://github.com/your-repo/dnstt-panel.git
-cd dnstt-panel
+git clone https://github.com/atakhadiviom/DNSTT-SSH-Panel.git
+cd DNSTT-SSH-Panel
 sudo bash dnstt-panel-installer.sh
 ```
 

@@ -8,7 +8,7 @@
 
 set -e
 
-REPO_URL="https://github.com/your-repo/dnstt-panel"
+REPO_URL="https://github.com/atakhadiviom/DNSTT-SSH-Panel"
 BRANCH="main"
 
 echo "╔════════════════════════════════════════════════════════════════╗"
