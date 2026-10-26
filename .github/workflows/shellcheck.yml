@@ -1,0 +1,34 @@
+name: Shell checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify scripts are executable
+        run: |
+          for f in dnstt-panel.sh dnstt-panel-installer.sh install.sh lib/user-management.sh; do
+            if [ ! -x "$f" ]; then
+              echo "ERROR: $f is missing the executable bit"
+              exit 1
+            fi
+          done
+
+      - name: Bash syntax check
+        run: |
+          for f in dnstt-panel.sh dnstt-panel-installer.sh install.sh lib/user-management.sh; do
+            echo "Checking $f..."
+            bash -n "$f"
+          done
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: '.'
+          severity: error
